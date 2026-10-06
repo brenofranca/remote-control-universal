@@ -124,6 +124,27 @@ describe('AndroidTvDriver', () => {
     expect((await driver.sendKey(RemoteKey.Home)).ok).toBe(false);
   });
 
+  it('avisa os ouvintes a cada mudança de status, inclusive na queda', async () => {
+    const tv = remoteTv();
+    const { driver } = await setup([tv]);
+    const statuses: string[] = [];
+    const unsubscribe = driver.onStatusChange((status) => statuses.push(status));
+
+    await driver.connect(DEVICE);
+    tv.drop();
+    unsubscribe();
+    await driver.disconnect();
+
+    expect(statuses).toEqual(['connecting', 'connected', 'disconnected']);
+  });
+
+  it('isPaired indica se existe pin salvo para a TV', async () => {
+    const paired = await setup([]);
+    const unpaired = await setup([], false);
+    expect(await paired.driver.isPaired(DEVICE)).toBe(true);
+    expect(await unpaired.driver.isPaired(DEVICE)).toBe(false);
+  });
+
   it('disconnect fecha a sessão e é idempotente', async () => {
     const tv = remoteTv();
     const { driver } = await setup([tv]);

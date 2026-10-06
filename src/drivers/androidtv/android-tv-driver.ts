@@ -23,6 +23,7 @@ export interface AndroidTvDriverDependencies {
 export class AndroidTvDriver implements TvDriver {
   private session: RemoteSession | null = null;
   private currentStatus: ConnectionStatus = 'disconnected';
+  private readonly statusListeners = new Set<(status: ConnectionStatus) => void>();
 
   constructor(private readonly deps: AndroidTvDriverDependencies) {}
 
@@ -30,9 +31,18 @@ export class AndroidTvDriver implements TvDriver {
     return this.currentStatus;
   }
 
+  onStatusChange(listener: (status: ConnectionStatus) => void): () => void {
+    this.statusListeners.add(listener);
+    return () => this.statusListeners.delete(listener);
+  }
+
+  async isPaired(device: TvDevice): Promise<boolean> {
+    return (await this.deps.pins.get(device.id)) !== null;
+  }
+
   async connect(device: TvDevice): Promise<Result<void>> {
     if (this.currentStatus === 'connecting') return fail(domainError('CONNECTION_FAILED', 'Já existe uma conexão em andamento.'));
-    this.currentStatus = 'connecting';
+    this.setStatus('connecting');
     this.closeCurrentSession();
 
     const identity = await this.loadIdentity();
@@ -40,19 +50,19 @@ export class AndroidTvDriver implements TvDriver {
       ? await RemoteSession.open({ connector: this.deps.connector, identity: identity.value, pins: this.deps.pins }, device)
       : identity;
     if (!opened.ok) {
-      this.currentStatus = 'disconnected';
+      this.setStatus('disconnected');
       return opened;
     }
 
     this.session = opened.value;
-    this.currentStatus = 'connected';
+    this.setStatus('connected');
     opened.value.onClosed(() => this.handleSessionClosed(opened.value));
     return ok(undefined);
   }
 
   async disconnect(): Promise<void> {
     this.closeCurrentSession();
-    this.currentStatus = 'disconnected';
+    this.setStatus('disconnected');
   }
 
   async sendKey(key: RemoteKey): Promise<Result<void>> {
@@ -89,6 +99,12 @@ export class AndroidTvDriver implements TvDriver {
   private handleSessionClosed(closed: RemoteSession): void {
     if (this.session !== closed) return;
     this.session = null;
-    this.currentStatus = 'disconnected';
+    this.setStatus('disconnected');
+  }
+
+  private setStatus(status: ConnectionStatus): void {
+    if (this.currentStatus === status) return;
+    this.currentStatus = status;
+    this.statusListeners.forEach((listener) => listener(status));
   }
 }
