@@ -56,6 +56,7 @@ O código tem exatamente 6 caracteres hexadecimais. O certificado da TV é obtid
 - Features (bitmask): PING 1, KEY 2, IME 4, VOICE 8, POWER 32, VOLUME 64, APP_LINK 512. O app ativa PING, KEY, POWER, VOLUME e APP_LINK.
 - Keep-alive: TV envia `remote_ping_request { val1 }`, cliente responde `remote_ping_response { val1 }` com o mesmo valor. Sem resposta, a TV derruba a conexão.
 - Tecla: `remote_key_inject { key_code, direction }`, onde `direction` é `SHORT` para toque, ou `START_LONG`/`END_LONG` para pressionar e segurar.
+- Abrir app: `remote_app_link_launch_request { app_link }` (campo 90 do `RemoteMessage`), exige a feature APP_LINK. O app usa `market://launch?id=<pacote>`, que pede à Play Store da TV para abrir o app instalado; o mapa `TvApp` → pacote fica em `app-links.ts`.
 - Mensagens recebidas úteis: volume atual, app em foco, estado de energia.
 
 ## Mapeamento inicial de teclas

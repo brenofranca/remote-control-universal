@@ -145,6 +145,26 @@ describe('RemoteSession (conectada)', () => {
     expect(decodeRemoteMessageForTests(tv.payloads[tv.payloads.length - 1])).toBe(`key:${KEYCODE_HOME}:3`);
   });
 
+  it('abre app pelo link quando a TV aceita APP_LINK', async () => {
+    const { session, tv } = await openSession();
+    expect(session.launchAppLink('market://launch?id=com.netflix.ninja').ok).toBe(true);
+    expect(decodeRemoteMessageForTests(tv.payloads[tv.payloads.length - 1])).toBe('appLink:market://launch?id=com.netflix.ninja');
+  });
+
+  it('recusa abrir app se a TV não negociou APP_LINK', async () => {
+    const tv = new FakeTlsConnection(SERVER_CERT, cooperativeTv);
+    queueMicrotask(() => tv.emit(remoteConfigureFromTv(Feature.PING | Feature.KEY)));
+    const { result } = await openWith(tv, await pairedPins());
+    if (!result.ok) throw new Error('não conectou');
+    const sent = tv.payloads.length;
+
+    const launched = result.value.launchAppLink('market://launch?id=x');
+
+    expect(launched.ok).toBe(false);
+    if (!launched.ok) expect(launched.error.code).toBe('UNSUPPORTED_APP');
+    expect(tv.payloads).toHaveLength(sent);
+  });
+
   it('aplica rate limit nas teclas', async () => {
     const { session } = await openSession({ keyLimiter: { tryAcquire: jest.fn().mockReturnValueOnce(true).mockReturnValue(false) } });
     expect(session.sendKey(KEYCODE_HOME).ok).toBe(true);

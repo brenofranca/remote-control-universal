@@ -1,4 +1,5 @@
 import { RemoteKey } from '@/domain/remote-key';
+import { TvApp } from '@/domain/tv-app';
 import type { TvDevice } from '@/domain/tv-device';
 import { AndroidTvDriver } from './android-tv-driver';
 import { IdentityRepository } from './identity-repository';
@@ -92,6 +93,22 @@ describe('AndroidTvDriver', () => {
     expect(decodeRemoteMessageForTests(tv.payloads[tv.payloads.length - 1])).toBe(`key:${KEYCODE_HOME}:${SHORT_PRESS}`);
   });
 
+  it('abre app traduzindo TvApp para o link Android', async () => {
+    const tv = remoteTv();
+    const { driver } = await setup([tv]);
+    await driver.connect(DEVICE);
+
+    expect((await driver.launchApp(TvApp.YouTube)).ok).toBe(true);
+    expect(decodeRemoteMessageForTests(tv.payloads[tv.payloads.length - 1])).toBe('appLink:market://launch?id=com.google.android.youtube.tv');
+  });
+
+  it('não abre app sem conexão', async () => {
+    const { driver } = await setup([]);
+    const result = await driver.launchApp(TvApp.Netflix);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe('NOT_CONNECTED');
+  });
+
   it('rejeita tecla desconhecida sem enviar nada', async () => {
     const tv = remoteTv();
     const { driver } = await setup([tv]);
@@ -122,6 +139,27 @@ describe('AndroidTvDriver', () => {
 
     expect(driver.status).toBe('disconnected');
     expect((await driver.sendKey(RemoteKey.Home)).ok).toBe(false);
+  });
+
+  it('avisa os ouvintes a cada mudança de status, inclusive na queda', async () => {
+    const tv = remoteTv();
+    const { driver } = await setup([tv]);
+    const statuses: string[] = [];
+    const unsubscribe = driver.onStatusChange((status) => statuses.push(status));
+
+    await driver.connect(DEVICE);
+    tv.drop();
+    unsubscribe();
+    await driver.disconnect();
+
+    expect(statuses).toEqual(['connecting', 'connected', 'disconnected']);
+  });
+
+  it('isPaired indica se existe pin salvo para a TV', async () => {
+    const paired = await setup([]);
+    const unpaired = await setup([], false);
+    expect(await paired.driver.isPaired(DEVICE)).toBe(true);
+    expect(await unpaired.driver.isPaired(DEVICE)).toBe(false);
   });
 
   it('disconnect fecha a sessão e é idempotente', async () => {

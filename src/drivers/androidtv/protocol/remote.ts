@@ -24,6 +24,7 @@ const WANTED_FEATURES = Feature.PING | Feature.KEY | Feature.POWER | Feature.VOL
 const CLIENT_PACKAGE_NAME = 'atvremote';
 const CLIENT_APP_VERSION = '1.0.0';
 const MAX_KEY_CODE = 2 ** 31 - 1;
+const MAX_APP_LINK_LENGTH = 512;
 
 const Field = {
   Configure: 1,
@@ -33,6 +34,7 @@ const Field = {
   PingResponse: 9,
   KeyInject: 10,
   Start: 40,
+  AppLinkLaunch: 90,
 } as const;
 
 const DIRECTION = { START_LONG: 1, END_LONG: 2, SHORT: 3 } as const;
@@ -54,6 +56,11 @@ export const encodeKeyInject = (keyCode: number, direction: KeyDirection): Uint8
     Field.KeyInject,
     concatBytes(varintField(1, keyCode), varintField(2, DIRECTION[direction])),
   );
+};
+
+export const encodeAppLinkLaunch = (appLink: string): Uint8Array => {
+  if (appLink.length === 0 || appLink.length > MAX_APP_LINK_LENGTH) throw new RangeError('appLink inválido');
+  return lengthDelimitedField(Field.AppLinkLaunch, stringField(1, appLink));
 };
 
 export const encodePingResponse = (val1: number): Uint8Array => lengthDelimitedField(Field.PingResponse, varintField(1, val1));

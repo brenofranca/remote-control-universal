@@ -56,7 +56,7 @@ interface TvDriver {
 
 1. mDNS `_androidtvremote2._tcp` retorna nome, IP e porta.
 2. Fallback: IP manual, validado contra faixas privadas.
-3. Última TV pareada é persistida.
+3. TVs pareadas ficam salvas (até 10) e a última usada abre direto no controle. Uma TV salva encontrada na busca usa o IP novo anunciado.
 4. Roteadores com isolamento de clientes bloqueiam mDNS, e o fallback cobre esse caso.
 
 ## Fluxo de pareamento
@@ -79,6 +79,7 @@ Descobrir TV → escolher → TV exibe código de 6 dígitos → usuário digita
 
 ## Design universal
 
+- Atalhos para abrir apps (YouTube, Netflix, Prime Video…), modelados como `TvApp` neutro no domínio.
 - D-pad circular com OK central, Voltar/Home, volume/mudo, canais, mídia, power.
 - Teclado numérico em bottom-sheet.
 - Tema claro/escuro automático (`dark:`).

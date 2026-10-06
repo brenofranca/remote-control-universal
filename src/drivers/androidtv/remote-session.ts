@@ -8,6 +8,7 @@ import type { ClientIdentity, TlsConnection, TlsConnector } from './ports';
 import { encodeFrame } from './protocol/frame';
 import {
   decodeRemoteMessage,
+  encodeAppLinkLaunch,
   encodeKeyInject,
   encodePingResponse,
   encodeRemoteConfigure,
@@ -74,6 +75,13 @@ export class RemoteSession {
     if ((this.features & Feature.KEY) === 0) return fail(domainError('UNSUPPORTED_KEY', 'A TV não aceita teclas.'));
     if (!this.keyLimiter.tryAcquire()) return fail(domainError('RATE_LIMITED', 'Muitas teclas em sequência.'));
     return safeWrite(this.connection, encodeFrame(encodeKeyInject(keyCode, direction)));
+  }
+
+  launchAppLink(appLink: string): Result<void> {
+    if (this.closed) return fail(domainError('NOT_CONNECTED', 'Sem conexão com a TV.'));
+    if ((this.features & Feature.APP_LINK) === 0) return fail(domainError('UNSUPPORTED_APP', 'A TV não aceita abrir apps.'));
+    if (!this.keyLimiter.tryAcquire()) return fail(domainError('RATE_LIMITED', 'Muitos comandos em sequência.'));
+    return safeWrite(this.connection, encodeFrame(encodeAppLinkLaunch(appLink)));
   }
 
   onClosed(listener: (error: DomainError) => void): void {
