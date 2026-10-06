@@ -20,6 +20,14 @@ export const ICONS = {
   refresh: { ios: 'arrow.clockwise', android: 'refresh' },
   close: { ios: 'xmark', android: 'close' },
   switchTv: { ios: 'arrow.left.arrow.right', android: 'swap_horiz' },
+  video: { ios: 'play.rectangle.fill', android: 'smart_display' },
+  film: { ios: 'film.fill', android: 'movie' },
+  liveTv: { ios: 'play.tv.fill', android: 'live_tv' },
+  sparkles: { ios: 'sparkles', android: 'auto_awesome' },
+  theater: { ios: 'theatermasks.fill', android: 'theater_comedy' },
+  globe: { ios: 'globe.americas.fill', android: 'public' },
+  music: { ios: 'music.note', android: 'music_note' },
+  headphones: { ios: 'headphones', android: 'headphones' },
 } as const satisfies Record<string, { ios: SFSymbol; android: AndroidSymbol }>;
 
 export type IconName = keyof typeof ICONS;
