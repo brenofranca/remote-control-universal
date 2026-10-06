@@ -3,6 +3,7 @@ import type { DomainError } from '@/domain/errors';
 import { domainError } from '@/domain/errors';
 import { fail, type Result } from '@/domain/result';
 import type { RemoteKey } from '@/domain/remote-key';
+import type { TvApp } from '@/domain/tv-app';
 import type { TvDevice } from '@/domain/tv-device';
 import type { ConnectionStatus } from '@/domain/tv-driver';
 import type { SavedTvRepository } from './saved-tv-repository';
@@ -19,6 +20,7 @@ export interface RemoteDriver {
   connect(device: TvDevice): Promise<Result<void>>;
   disconnect(): Promise<void>;
   sendKey(key: RemoteKey): Promise<Result<void>>;
+  launchApp(app: TvApp): Promise<Result<void>>;
   beginPairing(device: TvDevice): Promise<Result<PairingHandle>>;
 }
 
@@ -26,6 +28,8 @@ export type SelectOutcome = 'connected' | 'pairing' | 'failed';
 
 export interface RemoteState {
   readonly device: TvDevice | null;
+  readonly savedTvs: readonly TvDevice[];
+  readonly restored: boolean;
   readonly status: ConnectionStatus;
   readonly error: DomainError | null;
   readonly pairingDevice: TvDevice | null;
@@ -37,7 +41,9 @@ export interface RemoteState {
   cancelPairing(): void;
   reconnect(): Promise<boolean>;
   sendKey(key: RemoteKey): Promise<Result<void>>;
-  forget(): Promise<void>;
+  launchApp(app: TvApp): Promise<Result<void>>;
+  switchTv(): Promise<void>;
+  removeTv(deviceId: string): Promise<void>;
   clearError(): void;
 }
 
@@ -59,7 +65,7 @@ export const createRemoteStore = ({ driver, savedTvs }: RemoteStoreDependencies)
       set({ busy: true, error: null, device });
       const result = await driver.connect(device);
       set({ busy: false, error: result.ok ? null : result.error });
-      if (result.ok) await savedTvs.save(device);
+      if (result.ok) set({ savedTvs: (await savedTvs.remember(device)).devices });
       return result.ok;
     };
 
@@ -77,16 +83,28 @@ export const createRemoteStore = ({ driver, savedTvs }: RemoteStoreDependencies)
       return true;
     };
 
+    // Comando que reconecta uma vez e repete quando a conexão caiu.
+    const withReconnect = async (command: () => Promise<Result<void>>): Promise<Result<void>> => {
+      const sent = await command();
+      if (sent.ok || !RECONNECTABLE.includes(sent.error.code)) return sent;
+      if (!(await get().reconnect())) return fail(get().error ?? sent.error);
+      return command();
+    };
+
     return {
       device: null,
+      savedTvs: [],
+      restored: false,
       status: driver.status,
       error: null,
       pairingDevice: null,
       busy: false,
 
       async restore() {
-        const device = await savedTvs.load();
-        set({ device });
+        if (get().restored) return get().device;
+        const saved = await savedTvs.load();
+        const device = saved.devices.find((candidate) => candidate.id === saved.lastId) ?? null;
+        set({ device, savedTvs: saved.devices, restored: true });
         return device;
       },
 
@@ -135,17 +153,26 @@ export const createRemoteStore = ({ driver, savedTvs }: RemoteStoreDependencies)
         return reconnecting;
       },
 
-      async sendKey(key) {
-        const sent = await driver.sendKey(key);
-        if (sent.ok || !RECONNECTABLE.includes(sent.error.code)) return sent;
-        if (!(await get().reconnect())) return fail(get().error ?? sent.error);
-        return driver.sendKey(key);
+      sendKey(key) {
+        return withReconnect(() => driver.sendKey(key));
       },
 
-      async forget() {
+      launchApp(app) {
+        return withReconnect(() => driver.launchApp(app));
+      },
+
+      async switchTv() {
         await driver.disconnect();
-        await savedTvs.forget();
+        await savedTvs.clearLast();
         set({ device: null, error: null });
+      },
+
+      async removeTv(deviceId) {
+        if (get().device?.id === deviceId) {
+          await driver.disconnect();
+          set({ device: null, error: null });
+        }
+        set({ savedTvs: (await savedTvs.remove(deviceId)).devices });
       },
 
       clearError() {

@@ -1,6 +1,7 @@
 export type ErrorCode =
   | 'INVALID_ADDRESS'
   | 'UNSUPPORTED_KEY'
+  | 'UNSUPPORTED_APP'
   | 'NOT_CONNECTED'
   | 'CONNECTION_FAILED'
   | 'PAIRING_FAILED'

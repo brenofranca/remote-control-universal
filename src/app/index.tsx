@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useZeroconf, type ZeroconfError } from 'react-native-zeroconf';
 import type { TvDevice } from '@/domain/tv-device';
@@ -22,12 +22,19 @@ export default function DiscoverScreen() {
   const [manualAddress, setManualAddress] = useState('');
   const [manualError, setManualError] = useState<string | null>(null);
   const error = useRemote((state) => state.error);
+  const savedTvs = useRemote((state) => state.savedTvs);
   const { services, isScanning, error: scanError, restart } = useZeroconf({ ...ANDROID_TV_SERVICE, enabled: !restoring });
 
-  const devices = useMemo(
+  const discovered = useMemo(
     () => services.map(toTvDevice).filter((device): device is TvDevice => device !== null),
     [services],
   );
+  // TV salva encontrada na rede usa o endereço novo (o roteador pode ter trocado o IP).
+  const saved = useMemo(
+    () => savedTvs.map((device) => ({ device: discovered.find((found) => found.id === device.id) ?? device, online: discovered.some((found) => found.id === device.id) })),
+    [savedTvs, discovered],
+  );
+  const devices = useMemo(() => discovered.filter((device) => !savedTvs.some((known) => known.id === device.id)), [discovered, savedTvs]);
 
   useEffect(() => {
     remoteStore
@@ -56,6 +63,12 @@ export default function DiscoverScreen() {
     void select(device);
   };
 
+  const confirmRemove = (device: TvDevice) =>
+    Alert.alert('Remover TV', `Remover ${device.name} da lista?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Remover', style: 'destructive', onPress: () => void remoteStore.getState().removeTv(device.id) },
+    ]);
+
   if (restoring) {
     return (
       <View className="flex-1 items-center justify-center bg-white dark:bg-black">
@@ -75,9 +88,45 @@ export default function DiscoverScreen() {
             </Text>
           </View>
 
+          {saved.length > 0 && (
+            <View className="gap-3">
+              <Text className="text-sm font-semibold uppercase text-zinc-500 dark:text-zinc-400">Minhas TVs</Text>
+              {saved.map(({ device, online }) => (
+                <View key={device.id} className="min-h-16 flex-row items-center gap-2 rounded-2xl bg-zinc-100 pl-4 dark:bg-zinc-900">
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Conectar em ${device.name}`}
+                    onPress={() => select(device)}
+                    className="flex-1 flex-row items-center gap-4 py-3"
+                  >
+                    <Icon name="tv" />
+                    <View className="flex-1">
+                      <Text className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{device.name}</Text>
+                      <View className="flex-row items-center gap-2">
+                        <View className={`h-2 w-2 rounded-full ${online ? 'bg-green-500' : 'bg-zinc-400'}`} />
+                        <Text className="text-sm text-zinc-500 dark:text-zinc-400">{online ? `Na rede · ${device.address}` : device.address}</Text>
+                      </View>
+                    </View>
+                    {selectedId === device.id && <ActivityIndicator />}
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remover ${device.name}`}
+                    onPress={() => confirmRemove(device)}
+                    className="h-16 w-14 items-center justify-center"
+                  >
+                    <Icon name="close" size={18} color="#A1A1AA" />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+
           <View className="gap-3">
             <View className="flex-row items-center justify-between">
-              <Text className="text-sm font-semibold uppercase text-zinc-500 dark:text-zinc-400">TVs encontradas</Text>
+              <Text className="text-sm font-semibold uppercase text-zinc-500 dark:text-zinc-400">
+                {saved.length > 0 ? 'Outras TVs na rede' : 'TVs encontradas'}
+              </Text>
               <Pressable accessibilityRole="button" accessibilityLabel="Procurar novamente" hitSlop={12} onPress={restart}>
                 {isScanning ? <ActivityIndicator /> : <Icon name="refresh" size={20} />}
               </Pressable>
@@ -102,7 +151,11 @@ export default function DiscoverScreen() {
 
             {devices.length === 0 && (
               <Text className="rounded-2xl bg-zinc-100 p-4 text-base text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
-                {scanError ? discoveryErrorMessage(scanError) : 'Procurando TVs com Google TV / Android TV…'}
+                {scanError
+                  ? discoveryErrorMessage(scanError)
+                  : isScanning
+                    ? 'Procurando TVs com Google TV / Android TV…'
+                    : 'Nenhuma outra TV encontrada.'}
               </Text>
             )}
           </View>

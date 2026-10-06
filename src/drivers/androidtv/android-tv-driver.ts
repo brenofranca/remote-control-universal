@@ -1,8 +1,10 @@
 import { domainError } from '@/domain/errors';
 import { fail, ok, type Result } from '@/domain/result';
 import type { RemoteKey } from '@/domain/remote-key';
+import type { TvApp } from '@/domain/tv-app';
 import type { TvDevice } from '@/domain/tv-device';
 import type { ConnectionStatus, TvDriver } from '@/domain/tv-driver';
+import { toAndroidAppLink } from './app-links';
 import { CLIENT_DISPLAY_NAME } from './constants';
 import type { IdentityRepository } from './identity-repository';
 import { toAndroidKeyCode } from './key-map';
@@ -70,6 +72,13 @@ export class AndroidTvDriver implements TvDriver {
     const keyCode = toAndroidKeyCode(key);
     if (!keyCode.ok) return keyCode;
     return this.session.sendKey(keyCode.value);
+  }
+
+  async launchApp(app: TvApp): Promise<Result<void>> {
+    if (!this.session) return fail(domainError('NOT_CONNECTED', 'Sem conexão com a TV.'));
+    const appLink = toAndroidAppLink(app);
+    if (!appLink.ok) return appLink;
+    return this.session.launchAppLink(appLink.value);
   }
 
   async beginPairing(device: TvDevice): Promise<Result<PairingSession>> {

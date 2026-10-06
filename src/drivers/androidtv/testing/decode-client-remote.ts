@@ -26,5 +26,11 @@ export const decodeRemoteMessageForTests = (payload: Uint8Array): string => {
     const inner = parseFields(key);
     return inner.ok ? `key:${findVarint(inner.value, 1)}:${findVarint(inner.value, 2)}` : 'invalid';
   }
+  const appLink = findBytes(fields, 90);
+  if (appLink) {
+    const inner = parseFields(appLink);
+    const link = inner.ok ? findBytes(inner.value, 1) : undefined;
+    return link ? `appLink:${new TextDecoder().decode(link)}` : 'invalid';
+  }
   return 'unknown';
 };

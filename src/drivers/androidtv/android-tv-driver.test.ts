@@ -1,4 +1,5 @@
 import { RemoteKey } from '@/domain/remote-key';
+import { TvApp } from '@/domain/tv-app';
 import type { TvDevice } from '@/domain/tv-device';
 import { AndroidTvDriver } from './android-tv-driver';
 import { IdentityRepository } from './identity-repository';
@@ -90,6 +91,22 @@ describe('AndroidTvDriver', () => {
 
     expect(result.ok).toBe(true);
     expect(decodeRemoteMessageForTests(tv.payloads[tv.payloads.length - 1])).toBe(`key:${KEYCODE_HOME}:${SHORT_PRESS}`);
+  });
+
+  it('abre app traduzindo TvApp para o link Android', async () => {
+    const tv = remoteTv();
+    const { driver } = await setup([tv]);
+    await driver.connect(DEVICE);
+
+    expect((await driver.launchApp(TvApp.YouTube)).ok).toBe(true);
+    expect(decodeRemoteMessageForTests(tv.payloads[tv.payloads.length - 1])).toBe('appLink:market://launch?id=com.google.android.youtube.tv');
+  });
+
+  it('não abre app sem conexão', async () => {
+    const { driver } = await setup([]);
+    const result = await driver.launchApp(TvApp.Netflix);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe('NOT_CONNECTED');
   });
 
   it('rejeita tecla desconhecida sem enviar nada', async () => {

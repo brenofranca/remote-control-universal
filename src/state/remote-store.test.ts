@@ -1,12 +1,14 @@
 import { domainError } from '@/domain/errors';
 import { fail, ok, type Result } from '@/domain/result';
 import { RemoteKey } from '@/domain/remote-key';
+import { TvApp } from '@/domain/tv-app';
 import type { TvDevice } from '@/domain/tv-device';
 import type { ConnectionStatus } from '@/domain/tv-driver';
 import { createRemoteStore, type PairingHandle, type RemoteDriver } from './remote-store';
 import { SavedTvRepository } from './saved-tv-repository';
 
 const DEVICE: TvDevice = { id: 'mdns:TCL', name: 'TCL', address: '192.168.0.50', port: 6466, protocol: 'androidtv' };
+const OTHER: TvDevice = { id: 'ip:192.168.0.60', name: 'TV (192.168.0.60)', address: '192.168.0.60', port: 6466, protocol: 'androidtv' };
 
 const memorySavedTvs = () => {
   const data = new Map<string, string>();
@@ -37,6 +39,7 @@ const fakeDriver = (paired: boolean) => {
     }),
     disconnect: jest.fn(async () => undefined),
     sendKey: jest.fn(async (): Promise<Result<void>> => ok(undefined)),
+    launchApp: jest.fn(async (): Promise<Result<void>> => ok(undefined)),
     beginPairing: jest.fn(async (): Promise<Result<PairingHandle>> => ok(pairingHandle)),
   } satisfies RemoteDriver;
   return { driver, pairingHandle };
@@ -50,7 +53,8 @@ describe('remote store', () => {
 
     expect(await store.getState().select(DEVICE)).toBe('connected');
     expect(store.getState().status).toBe('connected');
-    expect(await savedTvs.load()).toEqual(DEVICE);
+    expect(await savedTvs.load()).toEqual({ devices: [DEVICE], lastId: DEVICE.id });
+    expect(store.getState().savedTvs).toEqual([DEVICE]);
   });
 
   it('TV nova passa pelo pareamento e conecta após o código', async () => {
@@ -108,16 +112,67 @@ describe('remote store', () => {
     expect(driver.connect).toHaveBeenCalledTimes(1);
   });
 
-  it('esquecer a TV desconecta e apaga o salvo', async () => {
+  it('restaura a última TV usada só uma vez', async () => {
+    const { driver } = fakeDriver(true);
+    const savedTvs = memorySavedTvs();
+    await savedTvs.remember(OTHER);
+    await savedTvs.remember(DEVICE);
+    const store = createRemoteStore({ driver, savedTvs });
+
+    expect(await store.getState().restore()).toEqual(DEVICE);
+    expect(store.getState().savedTvs).toEqual([DEVICE, OTHER]);
+    await store.getState().switchTv();
+    expect(await store.getState().restore()).toBeNull();
+  });
+
+  it('abre app e reconecta se a conexão caiu', async () => {
+    const { driver } = fakeDriver(true);
+    const store = createRemoteStore({ driver, savedTvs: memorySavedTvs() });
+    await store.getState().select(DEVICE);
+    driver.status = 'disconnected';
+    driver.launchApp.mockResolvedValueOnce(fail(domainError('CONNECTION_FAILED', 'Caiu.')));
+
+    expect((await store.getState().launchApp(TvApp.Netflix)).ok).toBe(true);
+    expect(driver.launchApp).toHaveBeenCalledWith(TvApp.Netflix);
+    expect(driver.connect).toHaveBeenCalledTimes(2);
+  });
+
+  it('trocar de TV desconecta mas mantém a lista', async () => {
     const { driver } = fakeDriver(true);
     const savedTvs = memorySavedTvs();
     const store = createRemoteStore({ driver, savedTvs });
     await store.getState().select(DEVICE);
 
-    await store.getState().forget();
+    await store.getState().switchTv();
 
     expect(driver.disconnect).toHaveBeenCalled();
-    expect(await savedTvs.load()).toBeNull();
     expect(store.getState().device).toBeNull();
+    expect(await savedTvs.load()).toEqual({ devices: [DEVICE], lastId: null });
+  });
+
+  it('remover a TV atual desconecta e tira da lista', async () => {
+    const { driver } = fakeDriver(true);
+    const savedTvs = memorySavedTvs();
+    const store = createRemoteStore({ driver, savedTvs });
+    await store.getState().select(OTHER);
+    await store.getState().select(DEVICE);
+
+    await store.getState().removeTv(DEVICE.id);
+
+    expect(driver.disconnect).toHaveBeenCalledTimes(1);
+    expect(store.getState().device).toBeNull();
+    expect(store.getState().savedTvs).toEqual([OTHER]);
+  });
+
+  it('remover outra TV não mexe na conexão atual', async () => {
+    const { driver } = fakeDriver(true);
+    const store = createRemoteStore({ driver, savedTvs: memorySavedTvs() });
+    await store.getState().select(OTHER);
+    await store.getState().select(DEVICE);
+
+    await store.getState().removeTv(OTHER.id);
+
+    expect(driver.disconnect).not.toHaveBeenCalled();
+    expect(store.getState().device).toEqual(DEVICE);
   });
 });

@@ -1,5 +1,6 @@
 import {
   decodeRemoteMessage,
+  encodeAppLinkLaunch,
   encodeKeyInject,
   encodePingResponse,
   encodeRemoteConfigure,
@@ -20,6 +21,16 @@ describe('encode (cliente para TV)', () => {
   it('KeyInject START_LONG e END_LONG', () => {
     expect(Array.from(encodeKeyInject(26, 'START_LONG'))).toEqual([0x52, 0x04, 0x08, 0x1a, 0x10, 0x01]);
     expect(Array.from(encodeKeyInject(26, 'END_LONG'))).toEqual([0x52, 0x04, 0x08, 0x1a, 0x10, 0x02]);
+  });
+
+  it('AppLinkLaunch envia o link no campo 90', () => {
+    const link = 'market://launch?id=com.netflix.ninja';
+    expect(Array.from(encodeAppLinkLaunch(link))).toEqual([0xd2, 0x05, link.length + 2, 0x0a, link.length, ...ascii(link)]);
+  });
+
+  it('AppLinkLaunch rejeita link vazio ou grande demais', () => {
+    expect(() => encodeAppLinkLaunch('')).toThrow(RangeError);
+    expect(() => encodeAppLinkLaunch('x'.repeat(513))).toThrow(RangeError);
   });
 
   it('PingResponse ecoa val1', () => {

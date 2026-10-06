@@ -3,7 +3,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, AppState, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RemoteKey } from '@/domain/remote-key';
+import type { TvApp } from '@/domain/tv-app';
 import { remoteStore, useRemote } from '@/state/remote';
+import { AppShortcuts } from '@/ui/app-shortcuts';
 import { DPad } from '@/ui/dpad';
 import { NumberPad } from '@/ui/number-pad';
 import { RemoteButton } from '@/ui/remote-button';
@@ -33,8 +35,12 @@ export default function RemoteScreen() {
     void remoteStore.getState().sendKey(key);
   }, []);
 
+  const launch = useCallback((app: TvApp) => {
+    void remoteStore.getState().launchApp(app);
+  }, []);
+
   const switchTv = async () => {
-    await remoteStore.getState().forget();
+    await remoteStore.getState().switchTv();
     router.replace('/');
   };
 
@@ -66,37 +72,40 @@ export default function RemoteScreen() {
         </Pressable>
       )}
 
-      <ScrollView contentContainerClassName="items-center gap-8 px-6 py-6">
-        <View className="w-full flex-row justify-between">
-          <RemoteButton label="Ligar ou desligar" icon="power" iconColor="#FFFFFF" className="bg-red-600 active:bg-red-700 dark:bg-red-600 dark:active:bg-red-700" onPress={() => send(RemoteKey.Power)} />
-          <RemoteButton label="Teclado numérico" icon="dialpad" onPress={() => setNumberPadOpen(true)} />
-        </View>
-
-        <DPad onKey={send} />
-
-        <View className="w-full flex-row justify-around">
-          <RemoteButton label="Voltar" icon="back" className="h-16 w-16" onPress={() => send(RemoteKey.Back)} />
-          <RemoteButton label="Início" icon="home" className="h-16 w-16" onPress={() => send(RemoteKey.Home)} />
-          <RemoteButton label="Mudo" icon="mute" className="h-16 w-16" onPress={() => send(RemoteKey.Mute)} />
-        </View>
-
-        <View className="w-full flex-row items-center justify-between">
-          <View className="items-center gap-1 rounded-full bg-zinc-200 py-1 dark:bg-zinc-800">
-            <RemoteButton label="Aumentar volume" icon="plus" repeat onPress={() => send(RemoteKey.VolumeUp)} />
-            <Text className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">VOL</Text>
-            <RemoteButton label="Diminuir volume" icon="minus" repeat onPress={() => send(RemoteKey.VolumeDown)} />
+      <ScrollView contentContainerClassName="gap-8 py-6">
+        <AppShortcuts onLaunch={launch} />
+        <View className="items-center gap-8 px-6">
+          <View className="w-full flex-row justify-between">
+            <RemoteButton label="Ligar ou desligar" icon="power" iconColor="#FFFFFF" className="bg-red-600 active:bg-red-700 dark:bg-red-600 dark:active:bg-red-700" onPress={() => send(RemoteKey.Power)} />
+            <RemoteButton label="Teclado numérico" icon="dialpad" onPress={() => setNumberPadOpen(true)} />
           </View>
 
-          <View className="flex-row gap-3">
-            <RemoteButton label="Retroceder" icon="rewind" onPress={() => send(RemoteKey.Rewind)} />
-            <RemoteButton label="Reproduzir ou pausar" icon="playPause" onPress={() => send(RemoteKey.PlayPause)} />
-            <RemoteButton label="Avançar" icon="forward" onPress={() => send(RemoteKey.FastForward)} />
+          <DPad onKey={send} />
+
+          <View className="w-full flex-row justify-around">
+            <RemoteButton label="Voltar" icon="back" className="h-16 w-16" onPress={() => send(RemoteKey.Back)} />
+            <RemoteButton label="Início" icon="home" className="h-16 w-16" onPress={() => send(RemoteKey.Home)} />
+            <RemoteButton label="Mudo" icon="mute" className="h-16 w-16" onPress={() => send(RemoteKey.Mute)} />
           </View>
 
-          <View className="items-center gap-1 rounded-full bg-zinc-200 py-1 dark:bg-zinc-800">
-            <RemoteButton label="Próximo canal" icon="up" repeat onPress={() => send(RemoteKey.ChannelUp)} />
-            <Text className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">CH</Text>
-            <RemoteButton label="Canal anterior" icon="down" repeat onPress={() => send(RemoteKey.ChannelDown)} />
+          <View className="w-full flex-row items-center justify-between">
+            <View className="items-center gap-1 rounded-full bg-zinc-200 py-1 dark:bg-zinc-800">
+              <RemoteButton label="Aumentar volume" icon="plus" repeat onPress={() => send(RemoteKey.VolumeUp)} />
+              <Text className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">VOL</Text>
+              <RemoteButton label="Diminuir volume" icon="minus" repeat onPress={() => send(RemoteKey.VolumeDown)} />
+            </View>
+
+            <View className="flex-row gap-3">
+              <RemoteButton label="Retroceder" icon="rewind" onPress={() => send(RemoteKey.Rewind)} />
+              <RemoteButton label="Reproduzir ou pausar" icon="playPause" onPress={() => send(RemoteKey.PlayPause)} />
+              <RemoteButton label="Avançar" icon="forward" onPress={() => send(RemoteKey.FastForward)} />
+            </View>
+
+            <View className="items-center gap-1 rounded-full bg-zinc-200 py-1 dark:bg-zinc-800">
+              <RemoteButton label="Próximo canal" icon="up" repeat onPress={() => send(RemoteKey.ChannelUp)} />
+              <Text className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">CH</Text>
+              <RemoteButton label="Canal anterior" icon="down" repeat onPress={() => send(RemoteKey.ChannelDown)} />
+            </View>
           </View>
         </View>
       </ScrollView>
